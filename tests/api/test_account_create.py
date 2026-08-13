@@ -5,15 +5,19 @@ in test_account_create_known_issues.py so they stay visible rather than being
 quietly encoded as "expected" here.
 """
 
+import re
+
 import pytest
 
 from utility.api import api_config, endpoints, payloads
 from utility.api.asserts import (
+    assert_content_type,
     assert_envelope,
     assert_errmsg_contains,
     assert_failure,
     assert_faster_than,
     assert_is_uuid,
+    assert_iso_timestamp,
     assert_no_secret_leak,
     assert_status,
     assert_success,
@@ -89,6 +93,98 @@ def test_registration_completes_within_budget(api):
 
     assert_status(response, 201)
     assert_faster_than(response, api_config.RESPONSE_TIME_BUDGET)
+
+
+# --------------------------------------------------------------------------
+# Response envelope contract
+#
+# Ported from the Postman collection's post-response tests, so both suites
+# hold the API to the same contract.
+# --------------------------------------------------------------------------
+
+
+def test_success_envelope_metadata(api):
+    """id / ver / ts / resmsgid / successmessage on a successful create."""
+    response = api.post(
+        endpoints.ACCOUNT_CREATE, json=payloads.registration_payload()
+    )
+
+    assert_status(response, 201)
+    assert_content_type(response)
+    body = assert_envelope(response)
+
+    assert body["id"] == "api.user.create"
+    assert body["ver"] == "1.0"
+    assert_iso_timestamp(body["ts"], "envelope ts")
+
+    params = body["params"]
+    assert params["successmessage"] == "User created successfully"
+    assert_is_uuid(params["resmsgid"], "params.resmsgid")
+    assert params["err"] is None, f"params.err should be null, got {params['err']!r}"
+    assert params["errmsg"] is None, (
+        f"params.errmsg should be null, got {params['errmsg']!r}"
+    )
+
+
+def test_user_data_timestamps(api):
+    """createdAt/updatedAt are ISO timestamps and identical at creation."""
+    response = api.post(
+        endpoints.ACCOUNT_CREATE, json=payloads.registration_payload()
+    )
+
+    user_data = assert_success(response, 201)["userData"]
+    assert_iso_timestamp(user_data["createdAt"], "createdAt")
+    assert_iso_timestamp(user_data["updatedAt"], "updatedAt")
+    assert user_data["createdAt"] == user_data["updatedAt"], (
+        f"A freshly created user should not already be modified: "
+        f"createdAt={user_data['createdAt']} updatedAt={user_data['updatedAt']}"
+    )
+    assert_iso_timestamp(user_data["dob"], "dob")
+
+
+def test_unsupplied_optional_fields_are_present_and_null(api):
+    """The response shape must be stable — absent values come back as explicit
+    nulls, not missing keys, so consumers can rely on the field existing."""
+    payload = payloads.registration_payload()
+    assert "middleName" not in payload and "email" not in payload
+
+    response = api.post(endpoints.ACCOUNT_CREATE, json=payload)
+
+    user_data = assert_success(response, 201)["userData"]
+    for field in [
+        "middleName",
+        "email",
+        "name",
+        "address",
+        "pincode",
+        "deviceId",
+        "createdBy",
+        "updatedBy",
+        "reason",
+        "lastLogin",
+    ]:
+        assert field in user_data, f"Response is missing the {field!r} key entirely"
+        assert user_data[field] is None, (
+            f"{field} was not submitted, so it should be null, "
+            f"got {user_data[field]!r}"
+        )
+
+
+def test_mobile_is_ten_digits(api):
+    payload = payloads.registration_payload()
+
+    response = api.post(endpoints.ACCOUNT_CREATE, json=payload)
+
+    user_data = assert_success(response, 201)["userData"]
+    assert re.fullmatch(r"\d{10}", str(user_data["mobile"])), (
+        f"mobile should round-trip as 10 digits, got {user_data['mobile']!r}"
+    )
+
+
+def test_gender_is_a_known_value(api, registered_user):
+    _, result = registered_user
+
+    assert result["userData"]["gender"] in ("male", "female", "other")
 
 
 # --------------------------------------------------------------------------

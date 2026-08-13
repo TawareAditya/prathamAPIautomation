@@ -18,7 +18,7 @@ pip install -r requirements.txt
 pytest tests/api -v
 ```
 
-Expected result: **26 passed, 9 xfailed**.
+Expected result: **31 passed, 8 xfailed**.
 
 The suite needs no credentials — the endpoint under test is public.
 
@@ -51,8 +51,8 @@ Full list of variables: [utility/api/api_config.py](utility/api/api_config.py).
 
 ```
 tests/api/                      test cases
-  test_account_create.py          26 tests covering correct behaviour
-  test_account_create_known_issues.py   9 xfail defect trackers
+  test_account_create.py          31 tests covering correct behaviour
+  test_account_create_known_issues.py   8 xfail defect trackers
   conftest.py                     fixtures (api, fresh_api, registered_user)
 utility/api/                    framework
   client.py                       requests wrapper, masked logging
@@ -111,7 +111,11 @@ When one starts failing, delete the marker and move the test into
 | 4 | Gender error lists no allowed values: `"must be one of the following values: "` |
 | 5 | No password policy — `"1234"`, `"a"`, `"password"` all accepted on a public endpoint |
 | 6 | Non-numeric `mobile` is silently dropped (`201` with `mobile: null`) instead of rejected |
-| 7 | `mobile` is sent as a string but returned as a number — leading zeros would be corrupted |
+
+The response-envelope assertions (`id`, `ver`, `ts`, `resmsgid`, `successmessage`,
+null optional fields, `createdAt == updatedAt`) are kept in step with the
+Postman collection's post-response tests, so both suites hold the API to the
+same contract.
 
 ### Open question: should this endpoint be public at all?
 

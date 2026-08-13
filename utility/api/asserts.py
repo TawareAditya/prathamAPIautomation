@@ -16,7 +16,11 @@ These helpers keep the failing payload in the assertion message — a bare
 `assert r.status_code == 201` tells you nothing about why the server said no.
 """
 
+import re
 import uuid
+
+# e.g. 2026-08-12T07:33:43.696Z
+ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
 ENVELOPE_KEYS = ("id", "ver", "ts", "params", "responseCode", "result")
 
@@ -113,6 +117,22 @@ def assert_is_uuid(value, label="value"):
         uuid.UUID(str(value))
     except (ValueError, AttributeError, TypeError):
         raise AssertionError(f"{label} is not a valid UUID: {value!r}") from None
+
+
+def assert_iso_timestamp(value, label="timestamp"):
+    """Assert a value matches the API's ISO-8601 millisecond format."""
+    assert isinstance(value, str) and ISO_TIMESTAMP.match(value), (
+        f"{label} is not an ISO-8601 timestamp like 2026-08-12T07:33:43.696Z: "
+        f"{value!r}"
+    )
+
+
+def assert_content_type(response, expected="application/json"):
+    actual = response.headers.get("Content-Type", "")
+    assert expected in actual, (
+        f"Expected Content-Type to include {expected!r}, got {actual!r}.\n"
+        f"{_context(response)}"
+    )
 
 
 def assert_faster_than(response, seconds):
