@@ -1,0 +1,127 @@
+name: API Automation Tests
+
+on:
+  push:                       # run on every push to any branch
+  pull_request:
+    branches: [main]
+  workflow_dispatch:          # allow manual runs from the Actions tab
+    inputs:
+      base_url:
+        description: "API base URL to test against"
+        required: false
+        default: "https://qa-interface.prathamdigital.org/interface/v1"
+      response_budget:
+        description: "Per-request timeout budget in SECONDS for timing assertions"
+        required: false
+        default: "10"
+      pytest_args:
+        description: "Extra pytest args, e.g. -m smoke  or  -m 'not known_issue'"
+        required: false
+        default: ""
+  schedule:
+    # 10:00 AM IST, Mon-Fri. GitHub cron is always UTC and IST is UTC+5:30,
+    # so 10:00 IST == 04:30 UTC.
+    - cron: "30 4 * * 1-5"
+
+# A newer push to the same branch cancels an in-flight run. Scheduled runs are
+# kept distinct so a nightly result is never discarded by a push.
+concurrency:
+  group: api-tests-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: Run pytest API suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # inputs.* is empty on push/schedule, so every value needs a fallback.
+      API_BASE_URL: ${{ inputs.base_url || 'https://qa-interface.prathamdigital.org/interface/v1' }}
+      API_RESPONSE_BUDGET: ${{ inputs.response_budget || '10' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run API test suite
+        id: tests
+        run: |
+          mkdir -p reports
+          pytest tests/api \
+            -v \
+            --html=reports/api-report.html --self-contained-html \
+            --junitxml=reports/junit.xml \
+            ${{ inputs.pytest_args }}
+
+      # Writes reports/email-summary.html and appends a digest to the
+      # Actions run page (via $GITHUB_STEP_SUMMARY).
+      - name: Build run summary
+        if: always()
+        run: python -m utility.api.ci_summary reports/junit.xml reports/email-summary.html
+
+      - name: Upload HTML reports
+        if: always()          # keep reports even when tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-reports-${{ github.run_number }}
+          path: reports/*.html
+          retention-days: 30
+
+      - name: Load email summary HTML
+        if: always()
+        id: summary
+        shell: bash
+        run: |
+          {
+            echo 'html<<__EMAIL_SUMMARY_EOF__'
+            if [ -f reports/email-summary.html ]; then
+              cat reports/email-summary.html
+            else
+              echo "<p>Summary report was not generated. See the run logs and attached reports.</p>"
+            fi
+            echo '__EMAIL_SUMMARY_EOF__'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send email notification
+        # Only notify on scheduled runs and on main — otherwise every push to
+        # a feature branch spams the list. Remove the ref check to widen it.
+        if: >
+          always() &&
+          (github.event_name == 'schedule' ||
+           github.ref == 'refs/heads/main' ||
+           github.event_name == 'workflow_dispatch')
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.MAIL_SERVER }}
+          server_port: ${{ secrets.MAIL_PORT }}
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "API Automation Tests: ${{ job.status }} (${{ github.ref_name }})"
+          to: ${{ secrets.MAIL_RECIPIENTS }}
+          from: API Automation <${{ secrets.MAIL_USERNAME }}>
+          html_body: ${{ steps.summary.outputs.html }}
+          body: |
+            API Automation Tests finished with status: ${{ job.status }}
+
+            Repository: ${{ github.repository }}
+            Branch/ref: ${{ github.ref_name }}
+            Triggered by: ${{ github.event_name }}
+            Commit: ${{ github.sha }}
+            Target API: ${{ env.API_BASE_URL }}
+
+            View the full run and download the HTML reports here:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          attachments: reports/*.html

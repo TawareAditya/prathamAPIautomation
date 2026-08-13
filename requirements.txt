@@ -1,0 +1,7 @@
+# API test suite dependencies.
+# No browser driver needed — these tests talk to the API directly.
+
+requests==2.33.0
+pytest==9.0.2
+pytest-html==4.2.0
+pytest-metadata==3.1.1

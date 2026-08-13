@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated reports (keep the directory, ignore its contents)
+reports/*
+!reports/.gitkeep
+
+# Editor noise
+.idea/
+.vscode/
+
+# Local overrides
+.env
