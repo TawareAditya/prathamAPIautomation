@@ -85,15 +85,47 @@ jobs:
         id: summary
         shell: bash
         run: |
+          # Random delimiter, per GitHub's guidance for multiline outputs.
+          DELIM="EOF_$(openssl rand -hex 8)"
           {
-            echo 'html<<__EMAIL_SUMMARY_EOF__'
-            if [ -f reports/email-summary.html ]; then
+            echo "html<<$DELIM"
+            if [ -s reports/email-summary.html ]; then
               cat reports/email-summary.html
             else
               echo "<p>Summary report was not generated. See the run logs and attached reports.</p>"
             fi
-            echo '__EMAIL_SUMMARY_EOF__'
+            # Guarantees the delimiter starts on its own line even if the file
+            # has no trailing newline. A stray blank line is harmless in HTML.
+            echo ""
+            echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
+
+      # An unset secret renders as an empty string, which surfaces further down
+      # as a cryptic "At least one of 'to', 'cc' or 'bcc' must be specified".
+      # Name the actual problem instead.
+      - name: Check mail configuration
+        if: >
+          always() &&
+          (github.event_name == 'schedule' ||
+           github.ref == 'refs/heads/main' ||
+           github.event_name == 'workflow_dispatch')
+        env:
+          MAIL_SERVER: ${{ secrets.MAIL_SERVER }}
+          MAIL_PORT: ${{ secrets.MAIL_PORT }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_RECIPIENTS: ${{ secrets.MAIL_RECIPIENTS }}
+        run: |
+          missing=""
+          for name in MAIL_SERVER MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_RECIPIENTS; do
+            [ -z "${!name}" ] && missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing — add them under" \
+                 "Settings > Secrets and variables > Actions. Names are case-sensitive."
+            exit 1
+          fi
+          echo "All five mail secrets are present."
 
       - name: Send email notification
         # Only notify on scheduled runs and on main — otherwise every push to

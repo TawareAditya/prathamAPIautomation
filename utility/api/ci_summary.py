@@ -256,7 +256,11 @@ def main():
 
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as handle:
-        handle.write(html)
+        # The trailing newline is required, not cosmetic: CI pipes this file
+        # into $GITHUB_OUTPUT as a heredoc, and without a final newline the
+        # closing delimiter lands on the same line as the last tag and is
+        # never matched ("Matching delimiter not found").
+        handle.write(html.rstrip("\n") + "\n")
     print(f"Wrote {out_path}")
 
 
