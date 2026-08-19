@@ -103,6 +103,9 @@ inactivity, and cron firing times are best-effort (expect 10:00–10:20).
 When one starts failing, delete the marker and move the test into
 `test_account_create.py`.
 
+**Full write-up for the dev team, with reproduction steps and suggested fixes:
+[docs/DEFECTS.md](docs/DEFECTS.md).**
+
 | # | Issue |
 |---|---|
 | 1 | `customFields` is optional — users can register with no state/district/block/village/medium |
