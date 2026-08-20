@@ -82,18 +82,25 @@ def test_gender_error_should_list_allowed_values(api):
     assert listed, f"No allowed values listed after {marker!r}: {errmsg!r}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SECURITY: no password policy on a public unauthenticated endpoint "
-    "— '1234' is accepted, so accounts can be created with trivial passwords.",
-)
-@pytest.mark.parametrize("weak_password", ["1234", "a", "password"])
-def test_weak_passwords_should_be_rejected(api, weak_password):
-    payload = payloads.registration_payload(password=weak_password)
-
-    response = api.post(endpoints.ACCOUNT_CREATE, json=payload)
-
-    assert_failure(response, 400)
+# DISABLED 2026-08-20 — not a defect.
+#
+# The absence of a password policy is intentional: it was requested by the
+# client and end users, so short passwords like "1234" are accepted by design.
+# Kept here (commented) rather than deleted so the decision stays on record and
+# the test can be restored if that requirement ever changes.
+#
+# @pytest.mark.xfail(
+#     strict=True,
+#     reason="SECURITY: no password policy on a public unauthenticated endpoint "
+#     "— '1234' is accepted, so accounts can be created with trivial passwords.",
+# )
+# @pytest.mark.parametrize("weak_password", ["1234", "a", "password"])
+# def test_weak_passwords_should_be_rejected(api, weak_password):
+#     payload = payloads.registration_payload(password=weak_password)
+#
+#     response = api.post(endpoints.ACCOUNT_CREATE, json=payload)
+#
+#     assert_failure(response, 400)
 
 
 @pytest.mark.xfail(

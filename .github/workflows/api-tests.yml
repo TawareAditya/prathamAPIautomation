@@ -114,10 +114,9 @@ jobs:
           MAIL_PORT: ${{ secrets.MAIL_PORT }}
           MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          MAIL_RECIPIENTS: ${{ secrets.MAIL_RECIPIENTS }}
         run: |
           missing=""
-          for name in MAIL_SERVER MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_RECIPIENTS; do
+          for name in MAIL_SERVER MAIL_PORT MAIL_USERNAME MAIL_PASSWORD; do
             [ -z "${!name}" ] && missing="$missing $name"
           done
           if [ -n "$missing" ]; then
@@ -125,7 +124,7 @@ jobs:
                  "Settings > Secrets and variables > Actions. Names are case-sensitive."
             exit 1
           fi
-          echo "All five mail secrets are present."
+          echo "All four mail secrets are present."
 
       - name: Send email notification
         # Only notify on scheduled runs and on main — otherwise every push to
@@ -142,7 +141,10 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "API Automation Tests: ${{ job.status }} (${{ github.ref_name }})"
-          to: ${{ secrets.MAIL_RECIPIENTS }}
+          # Distribution list. Comma-separated, no spaces — a space after a
+          # comma breaks the send. Edit here to add or remove people; this is
+          # no longer read from the MAIL_RECIPIENTS secret.
+          to: "aditya_t@tekditechnologies.com,priyanka_s@tekditechnologies.com,shubham.jha@tekditechnologies.com,snehal.patil@tekditechnologies.com,amol.chitale@tekditechnologies.com,amol_p@tekditechnologies.com,rushi_g@tekditechnologies.com"
           from: API Automation <${{ secrets.MAIL_USERNAME }}>
           html_body: ${{ steps.summary.outputs.html }}
           body: |

@@ -112,8 +112,12 @@ When one starts failing, delete the marker and move the test into
 | 2 | An empty `customFields: []` is likewise accepted |
 | 3 | Duplicate username returns `"Email already exists"` even when no email was sent |
 | 4 | Gender error lists no allowed values: `"must be one of the following values: "` |
-| 5 | No password policy — `"1234"`, `"a"`, `"password"` all accepted on a public endpoint |
-| 6 | Non-numeric `mobile` is silently dropped (`201` with `mobile: null`) instead of rejected |
+| 5 | Non-numeric `mobile` is silently dropped (`201` with `mobile: null`) instead of rejected |
+
+Closed 2026-08-20: the absence of a password policy is **intentional**, requested
+by the client and end users. That test is commented out in
+`test_account_create_known_issues.py` rather than deleted, so the decision stays
+on record.
 
 The response-envelope assertions (`id`, `ver`, `ts`, `resmsgid`, `successmessage`,
 null optional fields, `createdAt == updatedAt`) are kept in step with the

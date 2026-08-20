@@ -18,7 +18,7 @@ promote it. Nothing here needs manual re-verification.
 
 | ID | Severity | Defect |
 |---|---|---|
-| [D1](#d1) | **High** | No password policy — `1234` accepted on a public endpoint |
+| [D1](#d1) | ~~High~~ | ~~No password policy~~ — **closed 2026-08-20, intentional** |
 | [D2](#d2) | **Medium** | `customFields` is optional — accounts created with no location/medium data |
 | [D3](#d3) | **Medium** | Non-numeric `mobile` silently discarded instead of rejected |
 | [D4](#d4) | **Low** | Duplicate-username error reports the wrong field |
@@ -42,7 +42,17 @@ that fix likely takes priority over everything below.
 ---
 
 <a name="d1"></a>
-## D1 — No password policy (High)
+## D1 — No password policy — CLOSED, NOT A DEFECT
+
+> **Closed 2026-08-20.** Confirmed by the QA lead that the absence of a
+> password policy is **intentional**, requested by the client and end users.
+> No action required. The automated check has been commented out in
+> `test_account_create_known_issues.py`.
+>
+> The original finding is kept below for the record. Note that it interacts
+> with the unauthenticated-endpoint question above: if public self-registration
+> is intentional *and* short passwords are intentional, the combination is
+> worth a conscious sign-off rather than two separate decisions.
 
 **What happens.** The endpoint accepts any non-empty password. `1234`, `a` and
 `password` all create active accounts.
