@@ -140,11 +140,14 @@ jobs:
           server_port: ${{ secrets.MAIL_PORT }}
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "API Automation Tests: ${{ job.status }} (${{ github.ref_name }})"
-          # Distribution list. Comma-separated, no spaces — a space after a
-          # comma breaks the send. Edit here to add or remove people; this is
-          # no longer read from the MAIL_RECIPIENTS secret.
-          to: "aditya_t@tekditechnologies.com,priyanka_s@tekditechnologies.com,shubham.jha@tekditechnologies.com,snehal.patil@tekditechnologies.com,amol.chitale@tekditechnologies.com,amol_p@tekditechnologies.com,rushi_g@tekditechnologies.com"
+          subject: "Pratham - API Automation Tests Report (QA)"
+          # Recipients depend on what triggered the run:
+          #   schedule (10:00 AM IST weekdays) -> the full distribution list
+          #   push / manual run                -> the maintainer only, so that
+          #                                       commit-by-commit runs do not
+          #                                       spam the team
+          # Comma-separated, no spaces — a space after a comma breaks the send.
+          to: ${{ github.event_name == 'schedule' && 'aditya_t@tekditechnologies.com,priyanka_s@tekditechnologies.com,shubham.jha@tekditechnologies.com,snehal.patil@tekditechnologies.com,amol.chitale@tekditechnologies.com,amol_p@tekditechnologies.com,rushi_g@tekditechnologies.com' || 'aditya_t@tekditechnologies.com' }}
           from: API Automation <${{ secrets.MAIL_USERNAME }}>
           html_body: ${{ steps.summary.outputs.html }}
           body: |

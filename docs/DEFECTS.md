@@ -1,175 +1,250 @@
-# Defect Report — `POST /account/create`
+# Defect Report — User Registration API
 
-**Service:** Pratham interface API
 **Endpoint:** `POST https://qa-interface.prathamdigital.org/interface/v1/account/create`
 **Environment:** QA
-**Date verified:** 2026-08-19
-**Reported by:** QA automation (`prathamAPIautomation`, pytest suite)
+**Last verified:** 2026-08-20
+**Raised by:** QA automation ([`prathamAPIautomation`](https://github.com/TawareAditya/prathamAPIautomation))
 **Authorisation:** Testing performed on the team's own QA environment.
-
-Every defect below was reproduced live on the date above. Each has an
-automated test in
-[`tests/api/test_account_create_known_issues.py`](../tests/api/test_account_create_known_issues.py)
-marked `xfail(strict=True)` — the test asserts the *correct* behaviour, so the
-day a fix ships the test turns green and the build fails, prompting us to
-promote it. Nothing here needs manual re-verification.
-
-## Summary
-
-| ID | Severity | Defect |
-|---|---|---|
-| [D1](#d1) | ~~High~~ | ~~No password policy~~ — **closed 2026-08-20, intentional** |
-| [D2](#d2) | **Medium** | `customFields` is optional — accounts created with no location/medium data |
-| [D3](#d3) | **Medium** | Non-numeric `mobile` silently discarded instead of rejected |
-| [D4](#d4) | **Low** | Duplicate-username error reports the wrong field |
-| [D5](#d5) | **Low** | Gender validation error lists no allowed values |
-
-### Context: the endpoint is unauthenticated
-
-`/account/create` accepts requests with **no `Authorization` header**. The
-internal VAPT report dated 2026-05-15 (`SECURITY_FINDINGS.md`) raised this as a
-**critical** finding and recommended enforcing auth middleware. It appears
-unresolved as of 2026-08-19.
-
-This materially raises the severity of **D1** and **D2**: a defect that needs a
-privileged account to exploit is an internal data-quality problem, whereas the
-same defect on an endpoint open to the public internet is an abuse vector.
-
-Please confirm whether public self-registration is now an intentional product
-feature. If it is, the VAPT finding should be closed with a note. If it is not,
-that fix likely takes priority over everything below.
 
 ---
 
-<a name="d1"></a>
-## D1 — No password policy — CLOSED, NOT A DEFECT
+## How to read this report
 
-> **Closed 2026-08-20.** Confirmed by the QA lead that the absence of a
-> password policy is **intentional**, requested by the client and end users.
-> No action required. The automated check has been commented out in
-> `test_account_create_known_issues.py`.
->
-> The original finding is kept below for the record. Note that it interacts
-> with the unauthenticated-endpoint question above: if public self-registration
-> is intentional *and* short passwords are intentional, the combination is
-> worth a conscious sign-off rather than two separate decisions.
+Each defect has two parts:
 
-**What happens.** The endpoint accepts any non-empty password. `1234`, `a` and
-`password` all create active accounts.
+- **In plain terms** — what is wrong, no technical knowledge assumed.
+- **Technical detail** — reproduction steps, actual vs expected response, and a
+  suggested fix, written for the developer who will pick it up.
 
-**Reproduce.**
+Every finding was reproduced live on the date above, and every one has an
+automated test. Those tests assert the **correct** behaviour and are marked
+`xfail`, meaning "we expect this to fail until it's fixed". When a fix ships,
+the test starts passing and **the build turns red** — that is the signal the
+defect is resolved and the test should be promoted to the main suite. Nothing
+here needs manual re-checking.
+
+---
+
+## Open defects
+
+| ID | Priority | Defect | Product decision needed? |
+|---|---|---|---|
+| [D2](#d2) | **1 — Highest** | Location and language answers are not required; accounts can be created with an empty profile | **Yes** — are these fields mandatory? |
+| [D3](#d3) | **2** | A mobile number typed as text is silently discarded; the account is created with no phone number | No |
+| [D4](#d4) | 3 | Duplicate-username error blames the email address instead | No |
+| [D5](#d5) | 4 | Gender error message does not say which values are allowed | No |
+
+**Closed:** [D1 — no password policy](#d1) — confirmed intentional, no action required.
+
+D2 and D3 both cause **real data loss**. D4 and D5 are message-wording issues
+that mislead people but lose nothing.
+
+---
+
+## Important context: this endpoint requires no login
+
+`/account/create` accepts requests with **no authentication whatsoever**.
+Anyone who knows the address can create real accounts.
+
+The internal VAPT report of 2026-05-15 (`SECURITY_FINDINGS.md`) raised this as a
+**critical** finding and recommended enforcing authentication. As of
+2026-08-20 it appears unresolved.
+
+This matters for the defects below. A validation gap reachable only by trusted
+internal staff is a data-quality problem. The same gap on an endpoint open to
+the public internet is something that can be exploited at scale.
+
+**Question for the team:** is public self-registration now an intentional
+product feature? If yes, the VAPT finding should be formally closed with that
+reasoning. If no, fixing it likely outranks everything in this report.
+
+---
+
+<a name="d2"></a>
+## D2 — Location and language answers are not required
+
+**Priority 1 · Needs a product decision**
+
+### In plain terms
+
+When someone registers on the PLP website, the form asks more than name and
+password. It also asks **where they live** — state, district, block, village —
+and **which language they prefer**. Those five answers travel to the server
+together in a section of the request called `customFields`.
+
+The server does not insist on that section. If a registration request arrives
+without it, the server accepts it and creates the account anyway, leaving all
+five answers blank.
+
+You would never see this by using the website, because the web form always
+fills those answers in. But the registration service can be called directly,
+without going through the form — and doing so needs no login at all. That is
+how an account with no location ends up in the system.
+
+**Why it matters.** Those five answers are how a learner is placed on the map.
+A learner with no state or district cannot be counted in district reports, will
+not appear in location filters, and cannot be routed to the right centre or
+batch. The record exists but is invisible to anything organised by geography.
+
+### Evidence
+
+Three accounts created minutes apart on 2026-08-19, with consecutive enrolment
+IDs. All three are active learner accounts in the Pratham tenant.
+
+| Account | Enrolment ID | `customFields` sent | Stored on the account |
+|---|---|---|---|
+| `autoQA86492siy` | PLP-032341 | all five | **5 values** ✅ |
+| `autoQA11299ggs` | PLP-032342 | key omitted | **0 values** ❌ |
+| `autoQA25169srk` | PLP-032343 | `[]` (empty list) | **0 values** ❌ |
+
+The first account stored, correctly:
+
+```
+STATE                            = Andaman And Nicobar Islands
+DISTRICT                         = Nicobars
+BLOCK                            = Campbell Bay
+VILLAGE                          = Afra Bay
+WHAT_IS_YOUR_PREFERRED_LANGUAGE  = english
+```
+
+The other two stored nothing at all.
+
+### Technical detail
+
+**Reproduce** — take any valid registration payload and either remove the
+`customFields` key or set it to `[]`:
 
 ```bash
 curl -X POST 'https://qa-interface.prathamdigital.org/interface/v1/account/create' \
   -H 'Content-Type: application/json' \
   -d '{"firstName":"Test","lastName":"User","dob":"1999-08-10","gender":"male",
-       "mobile":"8600367304","username":"weakpw001","password":"1234",
+       "mobile":"8600367304","username":"cfprobe001","password":"Test@1234",
+       "customFields":[],
        "tenantCohortRoleMapping":[{"roleId":"eea7ddab-bdf9-4db1-a1bb-43ef503d65ef",
        "tenantId":"e39447df-069d-4ccf-b92c-576f70b350f3"}]}'
 ```
 
-**Actual** — `HTTP 201`, account created:
+**Actual:** `HTTP 201`, `params.status: "successful"`, account created.
+**Expected:** `HTTP 400` naming the missing fields — *if* they are mandatory.
 
-```json
-{"params": {"status": "successful", "err": null, "errmsg": null},
- "responseCode": 201,
- "result": {"userData": {"userId": "e4f93824-ce39-4c19-9048-81a12663539d",
-                         "username": "autoQA86492siy", "status": "active"}}}
+**To confirm what was stored:**
+
+```bash
+GET /interface/v1/user/read/{userId}?fieldvalue=true
 ```
 
-**Expected.** `HTTP 400` with a message describing the policy.
+Note the `?fieldvalue=true` query parameter is **required**. Without it the
+response omits `customFields` entirely, whether or not values exist — which
+makes the problem invisible during casual checking.
 
-**Why it matters.** Accounts with trivial passwords are trivially
-credential-stuffed. Because the endpoint needs no authentication, anyone can
-create them at will. `temporaryPassword: true` is returned, but nothing in the
-API forces a change before the account is usable.
+**Field reference** (labels confirmed from the server's own read response):
 
-**Suggested fix.** Apply a password policy at the DTO/validation layer —
-minimum length (8+), and reject values on a common-password deny list. Keep the
-rule identical to whatever the password-reset flow enforces, so the two cannot
-drift.
+| `fieldId` | Server label |
+|---|---|
+| `6469c3ac-8c46-49d7-852a-00f9589737c5` | STATE |
+| `b61edfc6-3787-4079-86d3-37262bf23a9e` | DISTRICT |
+| `4aab68ae-8382-43aa-a45a-e9b239319857` | BLOCK |
+| `8e9bb321-ff99-4e2e-9269-61e863dd0c54` | VILLAGE |
+| `7735e603-ce0e-4b1d-95f4-7d4b67267777` | WHAT_IS_YOUR_PREFERRED_LANGUAGE |
 
-**Test:** `test_weak_passwords_should_be_rejected[1234|a|password]`
+**Suggested fix.** If these fields are mandatory for the tenant, validate that
+every required `fieldId` is present with a non-empty value, and return `400`
+listing the ones missing. Drive it from the tenant's field configuration rather
+than a hardcoded list, so the rule follows the config.
 
----
+**If they are optional by design**, this is not a defect and we will close it —
+but downstream reporting and cohort assignment then need to handle learners
+with no location data, and that should be confirmed explicitly.
 
-<a name="d2"></a>
-## D2 — `customFields` is optional (Medium)
-
-**What happens.** Both an omitted `customFields` key and an empty
-`customFields: []` are accepted. The account is created with no state,
-district, block, village or medium.
-
-**Reproduce.** Send a valid payload with the `customFields` key removed
-entirely, then again with `"customFields": []`.
-
-**Actual** — `HTTP 201` in both cases:
-
-```
-no customFields key   -> 201, userId 2158558f-0bee-4a5c-858f-c21d6cc385ce
-customFields: []      -> 201, userId e1739959-c61b-4263-9538-bff05302a1d9
-```
-
-**Expected.** `HTTP 400` if these fields are mandatory for the tenant.
-
-**Why it matters.** The PLP web app always sends all five, so this is
-unreachable through the UI — but the API is public, so incomplete profiles can
-be created directly. Any reporting, cohort assignment or geography-based
-filtering that assumes those fields exist will silently skip or miscount these
-users.
-
-**Please confirm:** are these fields genuinely mandatory? If they are optional
-by design, this is not a defect and we will close it — but then downstream
-consumers need to handle nulls.
-
-**Suggested fix.** If mandatory, validate that every required `fieldId` for the
-tenant is present and non-empty, and return `400` naming the missing fields.
-
-**Tests:** `test_missing_custom_fields_should_be_rejected`,
+**Automated tests:** `test_missing_custom_fields_should_be_rejected`,
 `test_empty_custom_fields_should_be_rejected`
 
 ---
 
 <a name="d3"></a>
-## D3 — Non-numeric mobile silently discarded (Medium)
+## D3 — A mobile number typed as text is silently discarded
 
-**What happens.** `mobile: "abcdefghij"` does not fail validation. The account
-is created successfully with `mobile: null`.
+**Priority 2**
 
-Note that numeric validation *does* work — `"123"` (too short) and
-`"86003673040000"` (too long) are both correctly rejected with `400`. The gap
-is specific to non-numeric input.
+### In plain terms
 
-**Actual** — `HTTP 201`:
+The registration form asks for a mobile number. If letters are sent instead of
+digits, the server replies **"User created successfully"** — but it does not
+save what was sent. It throws the value away and stores the phone number as
+blank, while telling the caller everything worked.
 
-```json
-{"params": {"status": "successful"},
- "result": {"userData": {"userId": "efe78936-b2c7-49a5-860d-e3013e60959d",
-                         "mobile": null}}}
+**Why it matters.** Refusing bad input would be fine. Accepting it and quietly
+discarding it is the problem, because everyone downstream believes a number was
+saved. For that learner:
+
+- password recovery by SMS will not work — there is no number to send to
+- OTP login will not work
+- nobody can contact them
+- the failure only surfaces weeks later, with nothing linking it back to
+  registration
+
+The person registering saw a success message, so they have no idea anything
+went wrong.
+
+### Evidence
+
+Account `autoQA17158nwl` (**PLP-032344**), created 2026-08-19 by sending
+`"mobile": "abcdefghij"`. Read back on 2026-08-20:
+
+```
+username     : 'autoQA17158nwl'
+enrollmentId : 'PLP-032344'
+mobile       : None
+email        : None
 ```
 
-**Expected.** `HTTP 400`, consistent with how out-of-range numeric values are
-already handled.
+This account has **no contact route of any kind**.
 
-**Why it matters.** This is worse than a plain rejection. The caller receives
-`201` and reasonably believes the phone number was saved, when it was silently
-thrown away. Any OTP, SMS notification or phone-based recovery for that account
-will fail later, far from the cause.
+### Technical detail
+
+What makes this a bug rather than a design choice is that mobile validation
+*does* exist — it is just incomplete:
+
+| Value sent | Length | Result |
+|---|---|---|
+| `123` | 3 digits | `400` rejected ✅ correct |
+| `86003673040000` | 14 digits | `400` rejected ✅ correct |
+| `abcdefghij` | **10 characters** | **`201` accepted, stored as `null`** ❌ |
+
+The pattern suggests the check tests **length** but not whether the value is
+numeric. `abcdefghij` is ten characters, so it passes the length rule, then
+fails conversion to a number — and that failure becomes `null` instead of an
+error.
+
+**Actual:** `HTTP 201` with `result.userData.mobile: null`.
+**Expected:** `HTTP 400`, consistent with how out-of-range values already
+behave.
 
 **Suggested fix.** Validate `mobile` as a 10-digit numeric string and reject
-non-conforming input rather than coercing it to null.
+non-conforming input rather than coercing it to `null`. If a blank mobile is
+legitimately permitted, that should require the field to be **absent or
+explicitly null** — never the silent result of discarding what the user typed.
 
-**Test:** `test_non_numeric_mobile_should_be_rejected_not_dropped`
+**Automated test:** `test_non_numeric_mobile_should_be_rejected_not_dropped`
 
 ---
 
 <a name="d4"></a>
-## D4 — Duplicate-username error reports the wrong field (Low)
+## D4 — Duplicate-username error blames the email address
 
-**What happens.** Re-registering an existing username returns `409` — correct —
-but the message blames the email, and no email was submitted.
+**Priority 3**
 
-**Actual:**
+### In plain terms
+
+If someone tries to register with a username that is already taken, the server
+correctly refuses — but the message it sends back says **"Email already
+exists"**, even when no email address was entered at all.
+
+Someone registering is therefore told to change an email they never typed,
+while the real problem — their chosen username — is never mentioned. It is a
+wording problem, not data loss, but it sends users down the wrong path.
+
+### Technical detail
 
 ```
 HTTP 409
@@ -177,46 +252,73 @@ params.err    : "User exists with same username No email provided"
 params.errmsg : "Email already exists"
 ```
 
-**Expected.** `errmsg` should name the username, e.g.
-`"Username already exists"`.
+`errmsg` is the field client applications surface to end users, and it names
+the wrong field. Note also that `err` and `errmsg` **contradict each other** —
+`err` correctly mentions the username.
 
-**Why it matters.** `errmsg` is what client applications surface to end users.
-Someone registering is told to change an email address they never entered,
-while the actual conflict — their chosen username — goes unmentioned. Note also
-that `err` and `errmsg` contradict each other; `err` does mention the username.
+**Expected:** `errmsg` should read `"Username already exists"` for a username
+conflict, reserving the email wording for genuine email collisions.
 
-**Suggested fix.** Return `"Username already exists"` in `errmsg` for a username
-conflict, and reserve the email message for genuine email collisions. The
-unpunctuated `err` string ("...same username No email provided") reads as two
-concatenated messages and is worth tidying at the same time.
+**Suggested fix.** Return the message matching the field that actually clashed.
+The `err` string ("...same username No email provided") also reads as two
+sentences concatenated without punctuation and is worth tidying at the same
+time.
 
-**Test:** `test_duplicate_username_error_should_mention_username`
+**Automated test:** `test_duplicate_username_error_should_mention_username`
 
 ---
 
 <a name="d5"></a>
-## D5 — Gender validation error lists no allowed values (Low)
+## D5 — Gender error does not say which values are allowed
 
-**What happens.** The message is built to list the permitted values but the
-list interpolates as empty:
+**Priority 4**
+
+### In plain terms
+
+If an invalid gender value is submitted, the server refuses — correctly — but
+the message stops mid-sentence:
+
+> `gender must be one of the following values: `
+
+It never says what the acceptable values are. Anyone building against this API
+has to guess. It looks as though *no* value is acceptable.
+
+### Technical detail
 
 ```
 HTTP 400
 params.errmsg : "gender must be one of the following values: "
 ```
 
-**Expected.** `"gender must be one of the following values: male, female, other"`
+The trailing colon shows the message was designed to list the permitted values;
+the list simply is not reaching it.
 
-**Why it matters.** Purely a developer-experience issue, but the message is
-actively misleading — it looks like *no* value is acceptable. Anyone
-integrating against this API has to guess or read the source. The trailing
-colon shows the intent was there; the enum just is not reaching the message.
+**Expected:** `"gender must be one of the following values: male, female, other"`
 
 **Suggested fix.** Check the enum passed to the validation decorator. This is
-usually a `@IsEnum()` receiving a TypeScript `type` union (erased at runtime)
-rather than a runtime `enum` object.
+typically an `@IsEnum()` receiving a TypeScript union *type* — which is erased
+at runtime and yields an empty list — rather than a runtime `enum` object.
 
-**Test:** `test_gender_error_should_list_allowed_values`
+**Automated test:** `test_gender_error_should_list_allowed_values`
+
+---
+
+<a name="d1"></a>
+## D1 — No password policy — CLOSED, not a defect
+
+> **Closed 2026-08-20.** Confirmed that the absence of a password policy is
+> **intentional**, requested by the client and end users. Short passwords such
+> as `1234` are accepted by design. No action required.
+>
+> The automated check has been commented out (not deleted) in
+> `test_account_create_known_issues.py`, so the decision stays on record and
+> the test can be restored if the requirement changes.
+
+**One point worth a conscious sign-off.** Public self-registration and
+deliberately permissive passwords are each defensible on their own. The
+combination — anyone on the public internet able to create accounts with a
+password of `1234` — is worth one explicit product decision rather than two
+separate ones. Flagging it for visibility, not as a defect.
 
 ---
 
@@ -228,23 +330,41 @@ The suite runs against QA on every push and weekdays at 10:00 AM IST.
 pytest tests/api -m known_issue -v
 ```
 
-While a defect exists the test reports `xfail`. Once fixed it reports `XPASS`
-and **fails the build** — that is the signal to delete the `xfail` marker and
-move the test into `test_account_create.py`. Please leave the marker removal to
-the QA side so the promotion is tracked.
+| Report shows | Meaning |
+|---|---|
+| `XFAIL` | Defect still present. Build stays green. |
+| `XPASS` + build **fails** | Defect fixed — remove the `xfail` marker and promote the test. |
 
-## Test data
+Please leave marker removal to QA so promotions stay tracked.
 
-Verification created these QA accounts, all prefixed `autoQA`:
+---
+
+## Test data on QA
+
+Verification created these accounts, all prefixed `autoQA`:
 
 ```
-autoQA86492siy   e4f93824-ce39-4c19-9048-81a12663539d   (D1, password "1234")
-autoQA11299ggs   2158558f-0bee-4a5c-858f-c21d6cc385ce   (D2a)
-autoQA25169srk   e1739959-c61b-4263-9538-bff05302a1d9   (D2b)
-autoQA17158nwl   efe78936-b2c7-49a5-860d-e3013e60959d   (D3, mobile null)
-autoQA53374spt   —                                       (D4)
+autoQA86492siy   PLP-032341   D2 control — all five fields present
+autoQA11299ggs   PLP-032342   D2 — customFields omitted
+autoQA25169srk   PLP-032343   D2 — customFields empty
+autoQA17158nwl   PLP-032344   D3 — mobile and email both null
 ```
 
-The scheduled run adds roughly a dozen `autoQA*` accounts per day. If there is
-a delete or deactivate endpoint we can call, point us at it and the suite will
-clean up after itself.
+The scheduled run adds roughly a dozen `autoQA*` accounts per day and there is
+currently **no cleanup**.
+
+**Request:** if a delete or deactivate endpoint exists that QA may call, please
+point us at it and the suite will remove its own data after each run. Without
+one, these accumulate indefinitely and will eventually distort learner counts
+on QA.
+
+---
+
+## Open questions for the team
+
+1. **Is public unauthenticated registration intentional?** Changes the priority
+   of everything above. *(Owner: product / security)*
+2. **Are the five location and language fields mandatory?** Determines whether
+   D2 is a defect or expected behaviour. *(Owner: product)*
+3. **Is there an endpoint QA can use to delete test accounts?**
+   *(Owner: API team)*
