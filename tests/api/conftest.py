@@ -45,3 +45,15 @@ def registered_user(api):
 def announce_target():
     logger.info("API under test: %s", api_config.BASE_URL)
     yield
+
+
+@pytest.fixture
+def logged_in_learner(api):
+    """A freshly registered learner, already logged in, not yet enrolled.
+
+    Function-scoped: enrollment tests mutate tenant state, so each needs a
+    clean learner of its own.
+    """
+    from utility.api.learners import new_logged_in_learner
+
+    return new_logged_in_learner(api)

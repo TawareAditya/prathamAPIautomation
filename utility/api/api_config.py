@@ -26,6 +26,18 @@ RESPONSE_TIME_BUDGET = float(os.getenv("API_RESPONSE_BUDGET", "10"))
 TENANT_ID = os.getenv("API_TENANT_ID", "e39447df-069d-4ccf-b92c-576f70b350f3")
 ROLE_ID = os.getenv("API_ROLE_ID", "eea7ddab-bdf9-4db1-a1bb-43ef503d65ef")
 
+# --- SCP (Second Chance Program) enrollment flow ---
+# The child tenants of Pratham ARE the programs. Enrolling a learner into a
+# program means creating a user-tenant mapping to that child tenant.
+# Confirmed from GET /tenant/search on QA, 2026-08-26.
+SCP_TENANT_ID = os.getenv("API_SCP_TENANT_ID", "ef99949b-7f3a-4a5f-806a-e67e683e38f3")
+
+# Custom field the enrollment form writes. Server label: INTERESTED_TO_JOIN.
+ENROLLMENT_FIELD_ID = os.getenv(
+    "API_ENROLLMENT_FIELD_ID", "f8dc1d5f-9b2b-412e-a22a-351bd8f14963"
+)
+ENROLLMENT_STATUS = os.getenv("API_ENROLLMENT_STATUS", "pending")
+
 # Profile custom fields sent at registration. IDs and values mirror the
 # reference request captured from the PLP web app.
 #

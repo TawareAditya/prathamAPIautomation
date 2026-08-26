@@ -60,3 +60,29 @@ def registration_payload(**overrides):
 
 def login_payload(username, password):
     return {"username": username, "password": password}
+
+
+def user_tenant_payload(user_id, tenant_id=None, role_id=None, status="pending"):
+    """Body for POST /user-tenant — enrol a learner into a program (child tenant).
+
+    A value of None on tenant_id/role_id falls back to the SCP defaults; pass
+    them explicitly to build negative cases."""
+    return {
+        "userId": user_id,
+        "tenantId": tenant_id if tenant_id is not None else api_config.SCP_TENANT_ID,
+        "roleId": role_id if role_id is not None else api_config.ROLE_ID,
+        "userTenantStatus": status,
+    }
+
+
+def enrollment_form_payload(status=None, field_id=None):
+    """Body for PATCH /user/update/{userId} — set the enrollment status field."""
+    return {
+        "userData": {},
+        "customFields": [
+            {
+                "fieldId": field_id or api_config.ENROLLMENT_FIELD_ID,
+                "value": status or api_config.ENROLLMENT_STATUS,
+            }
+        ],
+    }
