@@ -86,3 +86,31 @@ def enrollment_form_payload(status=None, field_id=None):
             }
         ],
     }
+
+
+def profile_update_payload(user_data=None, custom_fields=None):
+    """Body for PATCH /user/update/{userId} — the full profile update.
+
+    user_data: dict of userData fields (firstName, lastName, mobile, dob, ...).
+    custom_fields: list of {"fieldId":..., "value":...} entries.
+    Both default to empty so callers set only what they mean to change.
+    """
+    return {
+        "userData": user_data or {},
+        "customFields": custom_fields or [],
+    }
+
+
+def full_profile_custom_fields(**overrides):
+    """The complete profile-update customFields list from api_config.PROFILE_FIELDS.
+
+    Pass label=value to override a specific field, or label=None to drop it.
+    """
+    fields = []
+    for label, (field_id, value) in api_config.PROFILE_FIELDS.items():
+        if label in overrides:
+            value = overrides[label]
+            if value is None:
+                continue
+        fields.append({"fieldId": field_id, "value": value})
+    return fields

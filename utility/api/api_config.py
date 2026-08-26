@@ -38,6 +38,33 @@ ENROLLMENT_FIELD_ID = os.getenv(
 )
 ENROLLMENT_STATUS = os.getenv("API_ENROLLMENT_STATUS", "pending")
 
+# QA academic year, sent on profile-update calls (matches the reference cURL).
+ACADEMIC_YEAR_ID = os.getenv(
+    "API_ACADEMIC_YEAR_ID", "f2692dd5-d2c9-43f3-9bbf-c38fb6d398f9"
+)
+
+# Profile custom field written by the update flow.
+# Server label: WHAT_IS_YOUR_PREFERRED_MODE_OF_LEARNING.
+MODE_OF_LEARNING_FIELD_ID = os.getenv(
+    "API_MODE_OF_LEARNING_FIELD_ID", "7b43db0a-f4c3-4c77-919f-622509ca7add"
+)
+
+# Full profile-update custom field set, keyed by server label (confirmed via
+# GET /user/read?fieldvalue=true on QA, 2026-08-26). Each entry is
+# (fieldId, sample value). Values with a list are multi-select fields; plain
+# strings are free-text/single fields, mirroring the reference cURL.
+PROFILE_FIELDS = {
+    "preferred_language": ("7735e603-ce0e-4b1d-95f4-7d4b67267777", ["marathi"]),
+    "mode_of_learning": ("7b43db0a-f4c3-4c77-919f-622509ca7add", "remote"),
+    "dropout_reason": ("4f48571b-88fd-43b9-acb3-91afda7901ac", ["financial_constraints"]),
+    "last_grade": ("9a4ad601-023b-467f-bbbe-bda1885f87c7", ["grade_4"]),
+    "marital_status": ("ff472647-6c40-42e6-b200-dc74b241e915", ["married"]),
+    "phone_type": ("da594b2e-c645-4a96-af15-6e2d24587c9a", "smartphone"),
+    "phone_belongs_to_you": ("d119d92f-fab7-4c7d-8370-8b40b5ed23dc", "yes"),
+    "family_member": ("7b4037c6-78df-4f55-b663-548350678ed7", "father"),
+    "father_name": ("f3fac0c3-bc8b-4260-8b56-1608fd31c237", "Dilip"),
+}
+
 # Profile custom fields sent at registration. IDs and values mirror the
 # reference request captured from the PLP web app.
 #
