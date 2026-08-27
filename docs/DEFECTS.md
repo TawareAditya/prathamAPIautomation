@@ -33,8 +33,12 @@ here needs manual re-checking.
 | [D3](#d3) | **2** | A mobile number typed as text is silently discarded; the account is created with no phone number | No |
 | [D4](#d4) | 3 | Duplicate-username error blames the email address instead | No |
 | [D5](#d5) | 4 | Gender error message does not say which values are allowed | No |
+| [D6](#d6) | 2 | A constrained custom field accepts invalid values (stored in the DB) while the API read hides them | No |
 
 **Closed:** [D1 — no password policy](#d1) — confirmed intentional, no action required.
+
+**Jira:** D2→ATM-90, D3→ATM-91, D4→ATM-92, D5→ATM-93, IDOR→ATM-94.
+D6 is **not yet filed** (Atlassian connector was down when found) — file under ATM-89.
 
 D2 and D3 both cause **real data loss**. D4 and D5 are message-wording issues
 that mislead people but lose nothing.
@@ -319,6 +323,61 @@ deliberately permissive passwords are each defensible on their own. The
 combination — anyone on the public internet able to create accounts with a
 password of `1234` — is worth one explicit product decision rather than two
 separate ones. Flagging it for visibility, not as a defect.
+
+---
+
+<a name="d6"></a>
+## D6 — Constrained custom field stores invalid values; the API read hides them
+
+**Priority 2 · Found via direct DB verification, 2026-08-27**
+
+### In plain terms
+
+Some profile fields are meant to accept only a fixed list of options (like a
+dropdown). The update API doesn't enforce that — it accepts **any** text and
+writes it to the database. Worse, the API's own read-back then **hides** the
+invalid value, so through the API everything looks fine while the database
+holds junk. This is invisible without looking at the database directly, which
+is exactly what the DB verification tests are for.
+
+Note: this corrects an earlier, API-only reading of the enrollment-status
+field that mistook this for a "silent discard" like D3. The value is **not**
+discarded — it **is** stored; the read simply omits it.
+
+### Evidence (QA, 2026-08-27)
+
+Sent to the enrollment-status field
+(`fieldId f8dc1d5f-9b2b-412e-a22a-351bd8f14963`, label `INTERESTED_TO_JOIN`)
+via `PATCH /user/update/{userId}`:
+
+```
+sent invalid value : "approved_xyz"
+API PATCH response : HTTP 200 "successful"
+DB FieldValues     : ['approved_xyz']     <- garbage stored, no validation
+API /user/read     : []                   <- read hides what the DB holds
+```
+
+### Technical detail
+
+Two defects, one root cause (no option-set validation on write):
+
+1. **Write:** `PATCH /user/update/{userId}` accepts a value outside the field's
+   allowed option set and stores it. Expected: `HTTP 400`.
+2. **Read:** `GET /user/read/{userId}?fieldvalue=true` omits the stored value
+   because it can't resolve it to a known option, so the API read disagrees
+   with the database.
+
+**Impact.** Constrained fields can be corrupted with arbitrary data through the
+API, and the corruption is invisible via the API read — anyone trusting
+`/user/read` sees an empty field while the database holds an invalid value.
+
+**Suggested fix.** Validate custom-field values against the field's allowed
+options on write and return `400` on mismatch; make the read surface stored
+values consistently rather than filtering out unrecognised ones.
+
+**Automated test:**
+`tests/api/test_db_verification.py::test_invalid_option_value_should_not_be_stored`
+(xfail — asserts the DB does not store an out-of-set value).
 
 ---
 

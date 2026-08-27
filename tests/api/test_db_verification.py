@@ -95,3 +95,34 @@ def test_profile_update_persisted_in_db(db_conn, logged_in_learner):
     assert _value_contains(stored[field_id]["value"], value), (
         f"mode_of_learning: sent {value!r}, DB stored {stored[field_id]['value']!r}"
     )
+
+
+@pytest.mark.known_issue
+@pytest.mark.xfail(
+    strict=True,
+    reason="D6: a constrained custom field (enrollment status, INTERESTED_TO_JOIN) "
+    "accepts an out-of-set value via PATCH /user/update and stores it in the DB "
+    "(API returns 200; the API read then hides it). Confirmed on QA 2026-08-27. "
+    "To be filed under ATM-89.",
+)
+def test_invalid_option_value_should_not_be_stored(db_conn, logged_in_learner):
+    """An invalid option value must not end up in FieldValues. Today it does —
+    the write endpoint has no option-set validation."""
+    client = APIClient()
+    client.set_token(logged_in_learner.token)
+    client.session.headers["tenantid"] = api_config.SCP_TENANT_ID
+    client.post(
+        endpoints.USER_TENANT,
+        json=payloads.user_tenant_payload(logged_in_learner.user_id),
+    )
+    client.patch(
+        endpoints.USER_UPDATE.format(user_id=logged_in_learner.user_id),
+        json=payloads.enrollment_form_payload(status="approved_xyz"),
+    )
+
+    stored = db.get_field_values(db_conn, logged_in_learner.user_id)
+    value = stored.get(api_config.ENROLLMENT_FIELD_ID, {}).get("value")
+
+    assert "approved_xyz" not in str(value), (
+        f"An out-of-set value was stored in the DB: {value!r}"
+    )
