@@ -5,6 +5,8 @@ is untouched, so UI tests keep working exactly as before.
 """
 
 import logging
+import os
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +15,30 @@ from utility.api.asserts import assert_success
 from utility.api.client import APIClient
 
 logger = logging.getLogger("api")
+
+
+def _load_dotenv():
+    """Load a local .env (repo root) into the environment for local runs.
+
+    Deliberately dependency-free and non-overriding: real environment
+    variables (e.g. CI secrets) always win over the file. Used so a developer
+    can `pytest tests/api` locally and pick up the DB config without exporting
+    variables each time. The file is gitignored.
+    """
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if not env_path.is_file():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+_load_dotenv()
 
 
 @pytest.fixture(scope="session")
@@ -70,8 +96,15 @@ def db_conn():
 
     if not dbmod.is_configured():
         pytest.skip(dbmod.missing_reason())
+    # Fast, cached TCP check first — an unreachable DB (e.g. a CI runner the
+    # firewall blocks) skips in ~3s once, not a 10s connect timeout per test.
+    if not dbmod.reachable():
+        pytest.skip(
+            f"DB not reachable at {os.getenv('POSTGRES_HOST')}:"
+            f"{os.getenv('POSTGRES_PORT', '5432')} (firewall / not on network)"
+        )
     try:
         with dbmod.connection() as conn:
             yield conn
-    except Exception as exc:  # unreachable / auth failure
-        pytest.skip(f"DB not reachable: {type(exc).__name__}: {exc}")
+    except Exception as exc:  # auth failure or dropped connection
+        pytest.skip(f"DB connection failed: {type(exc).__name__}: {exc}")

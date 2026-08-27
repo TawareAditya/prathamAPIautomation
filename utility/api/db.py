@@ -15,7 +15,9 @@ connection is opened read-only; this module only ever issues SELECTs.
 """
 
 import os
+import socket
 from contextlib import contextmanager
+from functools import lru_cache
 
 try:
     import psycopg2
@@ -40,6 +42,25 @@ def missing_reason():
         return "psycopg2 not installed"
     missing = [v for v in REQUIRED_VARS if not os.getenv(v)]
     return f"DB env not set: {', '.join(missing)}" if missing else ""
+
+
+@lru_cache(maxsize=1)
+def reachable(timeout=3.0):
+    """Fast one-time TCP check for the DB host:port.
+
+    Cached for the whole session so an unreachable DB (e.g. from a CI runner
+    the firewall blocks) costs one short check, not a full connect timeout on
+    every test.
+    """
+    host = os.getenv("POSTGRES_HOST")
+    if not host:
+        return False
+    port = int(os.getenv("POSTGRES_PORT", "5432"))
+    try:
+        socket.create_connection((host, port), timeout=timeout).close()
+        return True
+    except OSError:
+        return False
 
 
 @contextmanager
