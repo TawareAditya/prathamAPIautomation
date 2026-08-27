@@ -61,6 +61,15 @@ jobs:
 
       - name: Run API test suite
         id: tests
+        # DB verification tests read these. When the secrets are absent they
+        # resolve to empty strings and the DB tests skip cleanly — the rest of
+        # the suite runs regardless. Add the secrets to turn DB checks on.
+        env:
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
+          POSTGRES_USERNAME: ${{ secrets.POSTGRES_USERNAME }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
           mkdir -p reports
           pytest tests/api \

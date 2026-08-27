@@ -57,3 +57,21 @@ def logged_in_learner(api):
     from utility.api.learners import new_logged_in_learner
 
     return new_logged_in_learner(api)
+
+
+@pytest.fixture(scope="session")
+def db_conn():
+    """Read-only connection to the QA pratham DB.
+
+    Skips the whole test if the DB is not configured or unreachable, so the
+    suite stays green in environments without DB access (e.g. plain CI).
+    """
+    from utility.api import db as dbmod
+
+    if not dbmod.is_configured():
+        pytest.skip(dbmod.missing_reason())
+    try:
+        with dbmod.connection() as conn:
+            yield conn
+    except Exception as exc:  # unreachable / auth failure
+        pytest.skip(f"DB not reachable: {type(exc).__name__}: {exc}")

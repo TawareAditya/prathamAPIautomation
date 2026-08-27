@@ -5,3 +5,7 @@ requests==2.33.0
 pytest==9.0.2
 pytest-html==4.2.0
 pytest-metadata==3.1.1
+
+# Optional: only needed for the DB verification tests (tests/api/test_db_verification.py).
+# Those tests skip automatically if this is absent or the POSTGRES_* env is unset.
+psycopg2-binary==2.9.12
