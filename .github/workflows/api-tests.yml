@@ -19,9 +19,12 @@ on:
         required: false
         default: ""
   schedule:
-    # 10:00 AM IST, Mon-Fri. GitHub cron is always UTC and IST is UTC+5:30,
-    # so 10:00 IST == 04:30 UTC.
-    - cron: "30 4 * * 1-5"
+    # ~10:07 AM IST, Mon-Fri (04:37 UTC; IST is UTC+5:30).
+    # Deliberately OFF the round :00/:30 marks: GitHub delays or drops
+    # scheduled runs under load, and the top and half of each hour are the
+    # busiest, most-dropped slots. An odd minute is far less contended.
+    # GitHub still does not guarantee exact timing — expect a few minutes' drift.
+    - cron: "37 4 * * 1-5"
 
 # A newer push to the same branch cancels an in-flight run. Scheduled runs are
 # kept distinct so a nightly result is never discarded by a push.
@@ -142,12 +145,14 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "Pratham - API Automation Tests Report (QA)"
           # Recipients depend on what triggered the run:
-          #   schedule (10:00 AM IST weekdays) -> the full distribution list
-          #   push / manual run                -> the maintainer only, so that
-          #                                       commit-by-commit runs do not
-          #                                       spam the team
+          #   scheduled run                     -> the full distribution list
+          #   push with '[notify-all]' in the   -> the full distribution list
+          #     commit message                     (deliberate full-team send)
+          #   any other push / manual run       -> the maintainer only, so
+          #                                        commit-by-commit runs do not
+          #                                        spam the team
           # Comma-separated, no spaces — a space after a comma breaks the send.
-          to: ${{ github.event_name == 'schedule' && 'aditya_t@tekditechnologies.com,priyanka_s@tekditechnologies.com,shubham.jha@tekditechnologies.com,snehal.patil@tekditechnologies.com,amol.chitale@tekditechnologies.com,amol_p@tekditechnologies.com,rushi_g@tekditechnologies.com' || 'aditya_t@tekditechnologies.com' }}
+          to: ${{ (github.event_name == 'schedule' || contains(github.event.head_commit.message, '[notify-all]')) && 'aditya_t@tekditechnologies.com,priyanka_s@tekditechnologies.com,shubham.jha@tekditechnologies.com,snehal.patil@tekditechnologies.com,amol.chitale@tekditechnologies.com,amol_p@tekditechnologies.com,rushi_g@tekditechnologies.com' || 'aditya_t@tekditechnologies.com' }}
           from: API Automation <${{ secrets.MAIL_USERNAME }}>
           html_body: ${{ steps.summary.outputs.html }}
           body: |
