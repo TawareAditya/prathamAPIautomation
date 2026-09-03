@@ -161,7 +161,7 @@ jobs:
           #                                        commit-by-commit runs do not
           #                                        spam the team
           # Comma-separated, no spaces — a space after a comma breaks the send.
-          to: ${{ (github.event_name == 'schedule' || contains(github.event.head_commit.message, '[notify-all]')) && 'aditya_t@tekditechnologies.com,priyanka_s@tekditechnologies.com,shubham.jha@tekditechnologies.com,snehal.patil@tekditechnologies.com,amol.chitale@tekditechnologies.com,amol_p@tekditechnologies.com,rushi_g@tekditechnologies.com' || 'aditya_t@tekditechnologies.com' }}
+          to: ${{ (github.event_name == 'schedule' || contains(github.event.head_commit.message, '[notify-all]')) && 'aditya_t@tekditechnologies.com,priyanka_s@tekditechnologies.com,shubham.jha@tekditechnologies.com,snehal.patil@tekditechnologies.com,amol.chitale@tekditechnologies.com,rushi_g@tekditechnologies.com' || 'aditya_t@tekditechnologies.com' }}
           from: API Automation <${{ secrets.MAIL_USERNAME }}>
           html_body: ${{ steps.summary.outputs.html }}
           body: |
